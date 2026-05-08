@@ -107,3 +107,36 @@ func TestContext_CustomPromptVars(t *testing.T) {
 		})
 	}
 }
+
+// shelfwood-patch test: lock down ID surfacing in the LLM context block.
+// Without these IDs, MCP tools have to guess channel/user/team identifiers
+// from names, which fails on lookups (different teams may share a channel
+// name) and corrupts trace correlation data.
+func TestContext_StringIncludesIDs(t *testing.T) {
+	c := Context{
+		Time:        "now",
+		ServerName:  "S",
+		CompanyName: "C",
+		RequestingUser: &model.User{
+			Id:       "user-id-abc123",
+			Username: "alice",
+		},
+		Channel: &model.Channel{
+			Id:   "channel-id-xyz789",
+			Name: "town-square",
+		},
+		Team: &model.Team{
+			Id:   "team-id-eng001",
+			Name: "engineering",
+		},
+	}
+
+	out := c.String()
+
+	assert.Contains(t, out, "RequestingUser: alice")
+	assert.Contains(t, out, "RequestingUserID: user-id-abc123")
+	assert.Contains(t, out, "Channel: town-square")
+	assert.Contains(t, out, "ChannelID: channel-id-xyz789")
+	assert.Contains(t, out, "Team: engineering")
+	assert.Contains(t, out, "TeamID: team-id-eng001")
+}

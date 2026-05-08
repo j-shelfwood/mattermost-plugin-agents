@@ -103,13 +103,19 @@ func (c Context) String() string {
 	var result strings.Builder
 	result.WriteString(fmt.Sprintf("Time: %v\nServerName: %v\nCompanyName: %v", c.Time, c.ServerName, c.CompanyName))
 	if c.RequestingUser != nil {
-		result.WriteString(fmt.Sprintf("\nRequestingUser: %v", c.RequestingUser.Username))
+		// shelfwood-patch: surface IDs alongside names so MCP tools can correlate
+		// by stable id, not name. The names are still listed for human-readable
+		// system prompts; the IDs are for tools writing structured records.
+		result.WriteString(fmt.Sprintf("\nRequestingUser: %v\nRequestingUserID: %v", c.RequestingUser.Username, c.RequestingUser.Id))
 	}
 	if c.Channel != nil {
-		result.WriteString(fmt.Sprintf("\nChannel: %v", c.Channel.Name))
+		// shelfwood-patch: include ChannelID — the LLM previously only saw the
+		// channel name, so any tool needing channel_id had to guess or look it up.
+		result.WriteString(fmt.Sprintf("\nChannel: %v\nChannelID: %v", c.Channel.Name, c.Channel.Id))
 	}
 	if c.Team != nil {
-		result.WriteString(fmt.Sprintf("\nTeam: %v", c.Team.Name))
+		// shelfwood-patch: include TeamID for the same reason.
+		result.WriteString(fmt.Sprintf("\nTeam: %v\nTeamID: %v", c.Team.Name, c.Team.Id))
 	}
 
 	result.WriteString("\n--- Parameters ---\n")
