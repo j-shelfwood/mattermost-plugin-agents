@@ -47,6 +47,13 @@ type Context struct {
 	Tools             *ToolStore
 	DisabledToolsInfo []ToolInfo // Info about tools that are unavailable in the current context (e.g., DM-only tools in a channel)
 	Parameters        map[string]interface{}
+
+	// shelfwood-patch: tool calls already resolved earlier in this same
+	// turn. Lets MCP tools that summarize a chain of work (e.g. our
+	// record-dispatch-tool) read the full history from authoritative
+	// state instead of trusting the LLM to re-emit it. Updated by the
+	// toolrunner before each iteration of executeTools.
+	PreviousToolCalls []ToolCall
 }
 
 // ContextOption defines a function that configures a Context

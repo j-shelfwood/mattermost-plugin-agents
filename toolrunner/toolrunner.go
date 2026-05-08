@@ -329,6 +329,25 @@ func (r *ToolRunner) executeTools(ctx context.Context, toolCalls []llm.ToolCall,
 		var result string
 		var resolveErr error
 		if request.Context != nil && request.Context.Tools != nil {
+			// shelfwood-patch: populate PreviousToolCalls with the
+			// already-resolved calls from this same turn so MCP tools
+			// like record-dispatch-tool can pull the chain from
+			// authoritative state instead of re-asking the LLM.
+			previous := make([]llm.ToolCall, 0, i)
+			for j := 0; j < i; j++ {
+				prev := toolCalls[j]
+				if j < len(toolResults) {
+					prev.Result = toolResults[j].Result
+					if toolResults[j].IsError {
+						prev.Status = llm.ToolCallStatusError
+					} else {
+						prev.Status = llm.ToolCallStatusSuccess
+					}
+				}
+				previous = append(previous, prev)
+			}
+			request.Context.PreviousToolCalls = previous
+
 			toolCtx, span := telemetry.Tracer().Start(ctx, "resolve tool",
 				trace.WithAttributes(
 					telemetry.ToolName.String(tc.Name),

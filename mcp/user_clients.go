@@ -220,6 +220,27 @@ func (c *UserClients) prepareToolCallMetadata(client *Client, toolName string, l
 		metadata["bot_user_id"] = llmContext.BotUserID
 	}
 
+	// shelfwood-patch: inject the chain of already-resolved tool calls
+	// from the same turn so MCP tools that summarize work (record-dispatch
+	// in particular) read authoritative state instead of asking the LLM
+	// to re-emit it (which fails when the array gets long — gpt-5-mini
+	// drops entries silently).
+	if len(llmContext.PreviousToolCalls) > 0 {
+		if metadata == nil {
+			metadata = make(map[string]any)
+		}
+		previous := make([]map[string]any, 0, len(llmContext.PreviousToolCalls))
+		for _, tc := range llmContext.PreviousToolCalls {
+			previous = append(previous, map[string]any{
+				"name":      tc.Name,
+				"arguments": string(tc.Arguments),
+				"result":    tc.Result,
+				"errored":   tc.Status == llm.ToolCallStatusError,
+			})
+		}
+		metadata["previous_tool_calls"] = previous
+	}
+
 	return metadata
 }
 
