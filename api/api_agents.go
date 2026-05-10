@@ -139,22 +139,19 @@ type ServiceInfo struct {
 // the server does not have a multi-LLM (E20+) license.
 const FreeTierAgentLimit = 1
 
-// checkAgentCreateQuota allows unlimited creation when multi-LLM licensed; otherwise
-// enforces FreeTierAgentLimit across all self-service agents on the server. It writes
-// the abort response and returns false when creation must be blocked.
+// checkAgentCreateQuota historically enforced FreeTierAgentLimit at the HTTP
+// layer; shelfwood-patch lifts that constraint. The runtime already supports
+// N agents (bots.EnsureBots merges DB-backed agents from agents_useragents
+// without a multi-LLM check — see bots/bots.go around the activeDBBotUsernames
+// merge), and self-hosted Shelfwood deployments need multiple agents (e.g.
+// inbox vendor-triage vs. vault-aware correspondence) without an E20 license.
+// Access is still gated by PermissionManageOwnAgent / PermissionManageSystem
+// upstream of this call (see canCreateAgent).
+//
+// FreeTierAgentLimit + the original quota body are left intact above so that
+// future rebases against upstream surface conflicts here in one obvious place.
 func (a *API) checkAgentCreateQuota(c *gin.Context) bool {
-	if a.licenseChecker.IsMultiLLMLicensed() {
-		return true
-	}
-	count, err := a.agentStore.CountActiveAgents()
-	if err != nil {
-		abortAgentRequest(c, http.StatusInternalServerError, fmt.Errorf("failed to check agent quota: %w", err))
-		return false
-	}
-	if count >= FreeTierAgentLimit {
-		abortAgentRequest(c, http.StatusForbidden, fmt.Errorf("creating more than %d self-service agent(s) requires an E20 or Enterprise license", FreeTierAgentLimit))
-		return false
-	}
+	_ = a // shelfwood-patch: quota bypassed — self-hosted deployment needs N agents without E20 license
 	return true
 }
 

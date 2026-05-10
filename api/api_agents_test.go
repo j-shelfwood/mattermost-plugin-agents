@@ -355,21 +355,34 @@ func TestCreateAgentFreeTierAllowsFirstAgent(t *testing.T) {
 	require.Equal(t, http.StatusCreated, recorder.Result().StatusCode)
 }
 
-func TestCreateAgentFreeTierBlocksWhenQuotaReached(t *testing.T) {
+// shelfwood-patch: upstream's TestCreateAgentFreeTierBlocksWhenQuotaReached
+// asserted that POST /agents returns 403 once FreeTierAgentLimit is hit. This
+// fork lifts the quota in checkAgentCreateQuota (see api_agents.go), so we
+// invert the assertion: creation succeeds even when an existing agent already
+// occupies the upstream-quota slot. Access is still gated by the standard
+// PermissionManageOwnAgent / PermissionManageSystem checks upstream of this
+// call site.
+func TestCreateAgentFreeTier_ShelfwoodPatch_AllowsBeyondQuota(t *testing.T) {
 	e := setupAgentTestEnvironment(t)
 	defer e.Cleanup(t)
 
 	mockUnlicensed(e.mockAPI)
 	e.mockAPI.On("HasPermissionTo", testUserID, model.PermissionManageOwnAgent).Return(true)
+	e.mockAPI.On("CreateBot", mock.AnythingOfType("*model.Bot")).Return(&model.Bot{
+		UserId:      "bot-user-id-created",
+		Username:    "my-agent",
+		DisplayName: "My Agent",
+		Description: "User-created AI agent",
+	}, nil)
 	e.mockAPI.On("LogError", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
 
-	// One existing agent is already at the free-tier quota.
+	// One existing agent would have filled the upstream free-tier quota.
 	e.agentStore.agents["existing"] = &llm.BotConfig{
 		ID: "existing", CreatorID: "someone-else", Name: "existing", DisplayName: "Existing",
 	}
 
 	recorder := doRequest(e.api, http.MethodPost, "/agents", createAgentBody(nil), testUserID)
-	require.Equal(t, http.StatusForbidden, recorder.Result().StatusCode)
+	require.Equal(t, http.StatusCreated, recorder.Result().StatusCode)
 }
 
 func TestListAgentsFiltersByAccess(t *testing.T) {
